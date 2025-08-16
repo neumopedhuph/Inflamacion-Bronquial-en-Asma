@@ -1,0 +1,761 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Inflamación Bronquial en Asma</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .control-button {
+            transition: all 0.3s ease;
+        }
+        .control-button.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            animation: pulse-animation 1.5s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+            50% { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+            100% { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        }
+        .inhaler-container {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            z-index: 10;
+        }
+        .inhaler-hidden {
+            opacity: 0;
+            transform: translateY(-50%) scale(0.9);
+            pointer-events: none;
+        }
+        #bronchusCanvas {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+        }
+        #animation-card-content {
+            transition: background-color 0.5s ease;
+        }
+        #info-description ul {
+            text-align: center;
+            list-style-position: inside;
+        }
+         #info-description li {
+            margin-bottom: 0.5rem;
+         }
+        .status-label {
+            position: absolute;
+            top: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            transition: opacity 0.5s ease;
+            z-index: 20;
+            display: none;
+        }
+        @media (min-width: 768px) {
+            .status-label {
+                top: 20px;
+                font-size: 1.25rem;
+            }
+        }
+        #layer-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            display: none;
+            z-index: 30;
+        }
+        #credits-modal {
+            transition: opacity 0.3s ease;
+        }
+        #accordion-icon-container.active-arrow {
+            animation: bounce-arrow 1.5s infinite;
+        }
+        @keyframes bounce-arrow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        #accordion-icon-container.expanded svg {
+             transform: rotate(180deg);
+        }
+        #info-description-content {
+            transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
+            overflow: hidden;
+        }
+        #triggers-banner {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 95%;
+            max-width: 600px;
+            background-color: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            text-align: center;
+            z-index: 20;
+            display: none;
+            border-radius: 0.75rem; /* Rounded corners */
+        }
+        @media (min-width: 768px) {
+            #triggers-banner {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-200 text-gray-800">
+
+
+    <div class="container mx-auto p-4 md:p-8 max-w-5xl">
+        <div class="w-full bg-white rounded-2xl shadow-lg flex flex-col items-center justify-center relative border border-gray-200 overflow-hidden">
+            <header class="text-center py-6 w-full bg-white">
+                <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">Inflamación Bronquial en Asma</h1>
+            </header>
+            
+            <div id="animation-card" class="w-full p-4 md:p-6 flex flex-col items-center">
+                <!-- Contenedor de la Animación -->
+                <div class="relative w-full max-w-xl h-auto flex items-center justify-center">
+                    <!-- Etiquetas de estado de animación -->
+                    <div id="triggers-banner"><strong>DESENCADENANTES: Catarros, pólenes, ejercicio, aire frío, contaminación, tabaco, cambios de clima.</strong></div>
+                    <div id="crisis-label" class="status-label bg-red-500">CRISIS</div>
+                    <div id="inflammation-label" class="status-label bg-yellow-600">INFLAMACIÓN</div>
+                    <div id="time-label" class="status-label bg-blue-500 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span>5-30 minutos</span>
+                    </div>
+                     <div id="weeks-label" class="status-label bg-purple-500 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        <span>2-8 semanas</span>
+                    </div>
+
+
+                    <canvas id="bronchusCanvas" width="600" height="600"></canvas>
+                    <div id="layer-tooltip"></div>
+                    
+                    <div id="salbutamol-inhaler" class="inhaler-container inhaler-hidden left-0 md:left-2">
+                        <svg class="w-16 h-auto md:w-20" viewBox="0 0 100 167" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <title>Inhalador de Salbutamol</title>
+                            <path d="M25 41.75V13.875C25 10.9157 27.2386 8.5 30 8.5H70C72.7614 8.5 75 10.9157 75 13.875V41.75" fill="#2563EB"/> <path d="M25 41.75V116.375C25 119.334 27.2386 121.75 30 121.75H70C72.7614 121.75 75 119.334 75 116.375V41.75" fill="#3B82F6"/> <path d="M75 116.375V91.25H95C97.7614 91.25 100 93.6657 100 96.625V132.625C100 135.584 97.7614 138 95 138H75V116.375Z" fill="#60A5FA"/> <path d="M75 138H30C27.2386 138 25 140.416 25 143.375V158.5H75V138Z" fill="#1E40AF"/> <rect x="35" y="0" width="30" height="17" rx="8.5" fill="#D1D5DB"/> <rect x="35" y="4" width="30" height="9" fill="#93C5FD"/>
+                        </svg>
+                    </div>
+                    <div id="corticosteroid-inhaler" class="inhaler-container inhaler-hidden left-0 md:left-2">
+                       <svg class="w-16 h-auto md:w-20" viewBox="0 0 100 167" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <title>Inhalador de Corticoide</title>
+                            <path d="M25 41.75V13.875C25 10.9157 27.2386 8.5 30 8.5H70C72.7614 8.5 75 10.9157 75 13.875V41.75" fill="#E5E7EB"/> <path d="M25 41.75V116.375C25 119.334 27.2386 121.75 30 121.75H70C72.7614 121.75 75 119.334 75 116.375V41.75" fill="#F9FAFB"/> <path d="M75 116.375V91.25H95C97.7614 91.25 100 93.6657 100 96.625V132.625C100 135.584 97.7614 138 95 138H75V116.375Z" fill="#D1D5DB"/> <path d="M75 138H30C27.2386 138 25 140.416 25 143.375V158.5H75V138Z" fill="#9CA3AF"/> <rect x="35" y="0" width="30" height="17" rx="8.5" fill="#D1D5DB"/> <rect x="35" y="4" width="30" height="9" fill="#E5E7EB"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Caja de Información -->
+                <div id="info-box" class="mt-0 text-center w-full max-w-3xl">
+                    <div id="accordion-toggle" class="cursor-pointer">
+                        <div class="flex justify-center items-center gap-3">
+                            <h3 id="info-title" class="text-4xl font-bold"></h3>
+                        </div>
+                        <div class="flex justify-center items-center mt-2">
+                            <div id="accordion-icon-container"></div>
+                        </div>
+                    </div>
+                    <div id="info-description-content" style="max-height: 0px;">
+                        <div id="info-description" class="mt-2 text-slate-700 min-h-[120px] p-2"></div>
+                    </div>
+                </div>
+
+
+                <!-- Panel de Control -->
+                <div class="w-full flex flex-wrap justify-center gap-2 md:gap-4 mt-8">
+                    <button id="btn-normal" class="control-button px-4 py-2 rounded-lg text-white font-semibold shadow bg-green-500 hover:bg-green-600">Normal</button>
+                    <button id="btn-inflamed" class="control-button px-4 py-2 rounded-lg text-white font-semibold shadow bg-yellow-500 hover:bg-yellow-600">Inflamación</button>
+                    <button id="btn-crisis" class="control-button px-4 py-2 rounded-lg text-white font-semibold shadow bg-red-500 hover:bg-red-600">Crisis</button>
+                    <button id="btn-salbutamol" class="control-button px-4 py-2 rounded-lg text-white font-semibold shadow bg-blue-500 hover:bg-blue-600">Salbutamol</button>
+                    <button id="btn-corticosteroid" class="control-button px-4 py-2 rounded-lg text-white font-semibold shadow bg-purple-500 hover:bg-purple-600">Corticoide Inhalado</button>
+                </div>
+            </div>
+        </div>
+
+
+        <footer class="text-center mt-8 text-gray-600">
+            <p><strong id="credits-btn" class="cursor-pointer hover:text-blue-600">Créditos</strong></p>
+            <p class="text-sm mt-1">2025</p>
+        </footer>
+    </div>
+    
+    <!-- Modal de Créditos -->
+    <div id="credits-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div id="modal-content" class="bg-white rounded-lg p-8 max-w-md w-full relative transform scale-95 transition-transform duration-300">
+            <button id="close-modal-btn" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            <p class="text-center">Web animada creada por David Tejero Sánchez, neumólogo pediátrico en Madrid, mediante Gemini 2.5 pro, en base a las recomendaciones de los principales protocolos y guías para el manejo de asma internacionales y nacionales más recientes a fecha de agosto de 2025. Se prohibe su copia o modificación.</p>
+        </div>
+    </div>
+
+
+
+
+    <script>
+        // Declare variables for DOM elements
+        let canvas, ctx, animationCard, buttons, infoTitle, infoDescription, infoDescriptionContent, accordionToggle, accordionIconContainer, salbutamolInhaler, corticosteroidInhaler, crisisLabel, inflammationLabel, timeLabel, weeksLabel, layerTooltip, creditsBtn, creditsModal, closeModalBtn, modalContent, triggersBanner, width, height, centerX, centerY;
+
+
+        const themeColors = {
+            normal: { main: '#22c55e', bg: '#f0fdf4' },
+            inflamed: { main: '#eab308', bg: '#fefce8' },
+            crisis: { main: '#ef4444', bg: '#fef2f2' },
+            salbutamol: { main: '#3b82f6', bg: '#eff6ff' },
+            corticosteroid: { main: '#8b5cf6', bg: '#f5f3ff' }
+        };
+
+
+        const intenseColors = {
+            mucosaNormal: 'rgba(255, 182, 193, 1)', muscleNormal: 'rgba(218, 112, 214, 1)',
+            mucosaCrisis: 'rgba(255, 105, 97, 1)', muscleCrisis: 'rgba(199, 21, 133, 1)'
+        };
+
+
+        const states = {
+            normal: {
+                lumenRadius: 130, mucosaThickness: 25, muscleThickness: 20,
+                mucosaColor: intenseColors.mucosaNormal, muscleColor: intenseColors.muscleNormal,
+                mucusAmount: 0, bloodVessels: 15, inflammatoryCells: 0,
+                title: "Bronquio Normal",
+                description: `<ul><li>La vía aérea está completamente <strong>abierta</strong>.</li><li>El <strong>músculo liso</strong> está <strong>relajado</strong> y la mucosa no presenta <strong>inflamación</strong>.</li><li>Permite un buen <strong>flujo de aire</strong>.</li></ul>`
+            },
+            inflamed: {
+                lumenRadius: 95, mucosaThickness: 50, muscleThickness: 25,
+                mucosaColor: intenseColors.mucosaNormal, muscleColor: intenseColors.muscleNormal,
+                mucusAmount: 0, bloodVessels: 35, inflammatoryCells: 30,
+                title: "Bronquio Inflamado",
+                description: `<ul>
+                    <li>El interior del bronquio se encuentra <strong>inflamado de forma continua</strong>, dificultando el paso del aire.</li>
+                    <li>Aunque a veces <strong>no se noten síntomas</strong>, la <strong>inflamación está activa</strong>.</li>
+                    <li>Hay <strong>riesgo de sufrir una crisis</strong>.</li>
+                </ul>`
+            },
+            crisis: {
+                lumenRadius: 35, mucosaThickness: 70, muscleThickness: 40,
+                mucosaColor: intenseColors.mucosaCrisis, muscleColor: intenseColors.muscleCrisis,
+                mucusAmount: 25, bloodVessels: 50, inflammatoryCells: 60,
+                title: "Bronquio en Crisis Asmática",
+                description: `<ul>
+                    <li>El <strong>músculo</strong> se <strong>contrae</strong> y la <strong>inflamación empeora</strong>, cerrando el paso del aire.</li>
+                    <li>Esto provoca los síntomas típicos de una crisis:</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ <strong>Tos</strong></li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ <strong>Pitos en el pecho</strong></li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ <strong>Dificultad para respirar</strong>.</li>
+                </ul>`
+            },
+            salbutamol: {
+                lumenRadius: 85, mucosaThickness: 65, muscleThickness: 20,
+                mucosaColor: intenseColors.mucosaCrisis, muscleColor: intenseColors.muscleNormal,
+                mucusAmount: 20, bloodVessels: 45, inflammatoryCells: 50,
+                title: "Efecto del Salbutamol",
+                description: `<ul>
+                    <li>Es un medicamento de <strong>rescate</strong> que <strong>dilata el músculo</strong> de los bronquios rápidamente.</li>
+                    <li>Alivia los síntomas de <strong>tos</strong>, <strong>ahogo</strong> y <strong>pitos</strong> en pocos minutos.</li>
+                    <li><strong>No cura la inflamación</strong> de los bronquios.</li>
+                    <li>Su <strong>USO DIARIO CONTINUO</strong> durante semanas:</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ <strong>No previene</strong> futuras crisis.</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ Crea <strong>tolerancia</strong> y reduce su efecto.</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ <strong>Aumenta la inflamación</strong> de los bronquios.</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ Todo ello aumenta el <strong>riesgo de crisis de asma graves</strong>.</li>
+                </ul>`
+            },
+            corticosteroid: {
+                lumenRadius: 125, mucosaThickness: 30, muscleThickness: 20,
+                mucosaColor: intenseColors.mucosaNormal, muscleColor: intenseColors.muscleNormal,
+                mucusAmount: 0, bloodVessels: 18, inflammatoryCells: 10,
+                title: "Efecto del Corticoide Inhalado",
+                description: `<ul>
+                    <li>Es un <strong>medicamento preventivo</strong> que trata la <strong>inflamación</strong> de los bronquios.</li>
+                    <li>Algunos notan <strong>mejoría a los pocos días</strong>, otros necesitan <strong>varias semanas</strong>.</li>
+                    <li>Su <strong>USO DIARIO CONTINUO</strong> durante semanas:</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ Reduce la <strong>frecuencia de las crisis</strong>.</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ Disminuye el <strong>riesgo de sufrir crisis de asma graves</strong>.</li>
+                    <li style="list-style-type: none; padding-left: 1rem;">+ Controla los <strong>síntomas persistentes</strong> en el caso de presentarlos.</li>
+                </ul>`
+            }
+        };
+        
+        let currentState = { ...states.normal };
+        let targetState = { ...states.normal };
+        let animationFrameId;
+        let particles = [];
+        let loopConfig = null;
+        let sprayInterval = null;
+        let hoveredLayer = null;
+
+
+        function drawBronchus(params, highlightedLayer = null) {
+            ctx.clearRect(0, 0, width, height);
+            const outerRadius = params.lumenRadius + params.mucosaThickness + params.muscleThickness + 15;
+            
+            ctx.fillStyle = '#FADBD8';
+            ctx.beginPath(); ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI); ctx.fill();
+            
+            const muscleOuterRadius = params.lumenRadius + params.mucosaThickness + params.muscleThickness;
+            const muscleInnerRadius = params.lumenRadius + params.mucosaThickness;
+            ctx.fillStyle = params.muscleColor;
+            ctx.beginPath(); ctx.arc(centerX, centerY, muscleOuterRadius, 0, 2 * Math.PI); ctx.arc(centerX, centerY, muscleInnerRadius, 2 * Math.PI, 0, true); ctx.fill();
+            drawMuscleTexture(muscleInnerRadius, params.muscleThickness);
+
+
+            const mucosaInnerRadius = params.lumenRadius;
+            ctx.fillStyle = params.mucosaColor;
+            ctx.beginPath(); ctx.arc(centerX, centerY, muscleInnerRadius, 0, 2 * Math.PI); ctx.arc(centerX, centerY, mucosaInnerRadius, 2 * Math.PI, 0, true); ctx.fill();
+            
+            drawBloodVessels(mucosaInnerRadius, params.mucosaThickness, params.bloodVessels);
+            if (params.inflammatoryCells > 0) drawInflammatoryCells(mucosaInnerRadius, params.mucosaThickness, params.inflammatoryCells);
+            
+            drawFoldedLumen(centerX, centerY, params.lumenRadius, 12, 0.1);
+            if (params.mucusAmount > 0) drawMucus(params.lumenRadius, params.mucusAmount);
+
+
+            ctx.save();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = 10;
+            if (highlightedLayer === 'lumen') {
+                drawFoldedLumen(centerX, centerY, params.lumenRadius, 12, 0.1);
+                ctx.stroke();
+            } else if (highlightedLayer === 'mucosa') {
+                ctx.beginPath(); ctx.arc(centerX, centerY, muscleInnerRadius, 0, 2 * Math.PI); ctx.arc(centerX, centerY, mucosaInnerRadius, 2 * Math.PI, 0, true); ctx.stroke();
+            } else if (highlightedLayer === 'muscle') {
+                ctx.beginPath(); ctx.arc(centerX, centerY, muscleOuterRadius, 0, 2 * Math.PI); ctx.arc(centerX, centerY, muscleInnerRadius, 2 * Math.PI, 0, true); ctx.stroke();
+            }
+            ctx.restore();
+        }
+        
+        function drawFoldedLumen(cx, cy, radius, folds, depth) {
+            ctx.fillStyle = '#1e293b'; ctx.beginPath();
+            for (let i = 0; i <= 360; i++) {
+                const angle = i * Math.PI / 180;
+                const r = radius * (1 - depth * Math.sin(angle * folds));
+                const x = cx + r * Math.cos(angle); const y = cy + r * Math.sin(angle);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.closePath(); ctx.fill();
+        }
+
+
+        function drawMucus(lumenRadius, amount) {
+            ctx.fillStyle = 'rgba(210, 240, 210, 0.7)';
+            for (let i = 0; i < amount; i++) {
+                const angle = Math.random() * 2 * Math.PI; const radius = Math.random() * lumenRadius * 0.8;
+                const size = 5 + Math.random() * 15;
+                ctx.beginPath(); ctx.arc(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius, size, 0, 2 * Math.PI); ctx.fill();
+            }
+        }
+
+
+        function drawBloodVessels(lumenRadius, mucosaThickness, amount) {
+            ctx.fillStyle = 'rgba(220, 20, 60, 0.6)';
+            for (let i = 0; i < amount; i++) {
+                const angle = Math.random() * 2 * Math.PI; const distFromLumen = Math.random() * mucosaThickness;
+                const radius = lumenRadius + distFromLumen; const size = 2 + Math.random() * 3;
+                ctx.beginPath(); ctx.arc(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius, size, 0, 2 * Math.PI); ctx.fill();
+            }
+        }
+
+
+        function drawInflammatoryCells(lumenRadius, mucosaThickness, amount) {
+            for (let i = 0; i < amount; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                const distFromLumen = Math.random() * mucosaThickness * 0.8 + mucosaThickness * 0.1;
+                const radius = lumenRadius + distFromLumen;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                
+                ctx.fillStyle = 'rgba(255, 50, 50, 0.8)';
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(150, 0, 0, 0.9)';
+                ctx.beginPath();
+                ctx.arc(x - 1.5, y, 2, 0, 2 * Math.PI);
+                ctx.arc(x + 1.5, y, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+
+        function drawMuscleTexture(innerRadius, thickness) {
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; ctx.lineWidth = 3;
+            for (let i = 0; i < 36; i++) {
+                const angle = (i * 10) * Math.PI / 180;
+                const startX = centerX + innerRadius * Math.cos(angle); const startY = centerY + innerRadius * Math.sin(angle);
+                const endX = centerX + (innerRadius + thickness) * Math.cos(angle); const endY = centerY + (innerRadius + thickness) * Math.sin(angle);
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+            }
+        }
+
+
+        function createParticles(count, color) {
+            const inhalerNozzleX = 160; const inhalerNozzleY = centerY;
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: inhalerNozzleX, y: inhalerNozzleY,
+                    vx: 3 + Math.random() * 2, vy: (Math.random() - 0.5) * 3,
+                    life: 150 + Math.random() * 60,
+                    size: 3 + Math.random() * 3, color: color
+                });
+            }
+        }
+
+
+        function updateAndDrawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i]; p.x += p.vx; p.y += p.vy; p.life--;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = Math.min(1, p.life / 60);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 2 * Math.PI); ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+        
+        function updateUI(stateName) {
+            const state = states[stateName];
+            const theme = themeColors[stateName];
+            infoTitle.textContent = state.title;
+            infoTitle.style.color = theme.main;
+            infoDescription.innerHTML = state.description;
+            animationCard.style.backgroundColor = theme.bg;
+            
+            accordionIconContainer.innerHTML = `<svg style="color: ${theme.main};" class="w-8 h-8 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>`;
+            
+            Object.values(buttons).forEach(btn => btn.classList.remove('active'));
+            accordionIconContainer.classList.remove('active-arrow');
+            const btnKey = stateName === 'corticosteroid' ? 'corticosteroid' : stateName;
+            const btn = buttons[btnKey];
+            if(btn) {
+                btn.classList.add('active');
+                accordionIconContainer.classList.add('active-arrow');
+            }
+
+
+            // Recalculate accordion height if it's open
+            if (infoDescriptionContent.style.maxHeight !== '0px') {
+                infoDescriptionContent.style.maxHeight = infoDescriptionContent.scrollHeight + "px";
+            }
+        }
+        
+        function stopAllLoops() {
+            loopConfig = null;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (sprayInterval) clearInterval(sprayInterval);
+            sprayInterval = null;
+            hideAllOverlays();
+        }
+        
+        function hideAllOverlays() {
+            salbutamolInhaler.classList.add('inhaler-hidden');
+            corticosteroidInhaler.classList.add('inhaler-hidden');
+            crisisLabel.style.display = 'none';
+            inflammationLabel.style.display = 'none';
+            timeLabel.style.display = 'none';
+            weeksLabel.style.display = 'none';
+            triggersBanner.style.display = 'none';
+        }
+
+
+        function handleStateChange(stateName) {
+            stopAllLoops();
+            updateUI(stateName);
+            targetState = { ...states[stateName] };
+            if (stateName === 'crisis') {
+                triggersBanner.style.display = 'block';
+            }
+            animate();
+        }
+
+
+        function animate() {
+            let needsRedraw = false;
+            const easingFactor = 0.02;
+            for (const key in targetState) {
+                if (typeof currentState[key] === 'number') {
+                    const diff = targetState[key] - currentState[key];
+                    if (Math.abs(diff) > 0.1) {
+                        currentState[key] += diff * easingFactor; needsRedraw = true;
+                    } else {
+                        currentState[key] = targetState[key];
+                    }
+                } else {
+                     currentState[key] = targetState[key];
+                }
+            }
+            drawBronchus(currentState, hoveredLayer);
+            updateAndDrawParticles();
+            if (needsRedraw || particles.length > 0) {
+                animationFrameId = requestAnimationFrame(animate);
+            } else {
+                animationFrameId = null;
+                if (loopConfig) {
+                    if (loopConfig.type === 'salbutamol') {
+                        setTimeout(startSalbutamolLoopCycle, 2000); 
+                    } else if (loopConfig.type === 'corticosteroid') {
+                        setTimeout(startCorticosteroidLoopCycle, 2000);
+                    }
+                }
+            }
+        }
+
+
+        function startCorticosteroidLoopCycle() {
+            if (!loopConfig || loopConfig.type !== 'corticosteroid') return;
+            
+            hideAllOverlays();
+            currentState = { ...states.inflamed };
+            targetState = { ...states.inflamed };
+            drawBronchus(currentState);
+            inflammationLabel.style.display = 'block';
+
+
+            setTimeout(() => {
+                if (!loopConfig || loopConfig.type !== 'corticosteroid') return;
+                corticosteroidInhaler.classList.remove('inhaler-hidden');
+                
+                createParticles(50, loopConfig.particleColor);
+                if (!animationFrameId) animate();
+                sprayInterval = setInterval(() => {
+                    if (loopConfig && loopConfig.type === 'corticosteroid') {
+                         createParticles(50, loopConfig.particleColor);
+                         if (!animationFrameId) animate();
+                    }
+                }, 1000);
+
+
+                setTimeout(() => {
+                    if (!loopConfig || loopConfig.type !== 'corticosteroid') return;
+                    inflammationLabel.style.display = 'none';
+                    weeksLabel.style.display = 'flex';
+
+
+                    setTimeout(() => {
+                        if (!loopConfig || loopConfig.type !== 'corticosteroid') return;
+                        targetState = { ...states.corticosteroid };
+                    }, 2000);
+
+
+                }, 1500);
+
+
+            }, 1000);
+        }
+
+
+        function startSalbutamolLoopCycle() {
+            if (!loopConfig || loopConfig.type !== 'salbutamol') return;
+            
+            hideAllOverlays();
+            currentState = { ...states.crisis };
+            targetState = { ...states.crisis };
+            drawBronchus(currentState);
+            crisisLabel.style.display = 'block';
+
+
+            setTimeout(() => {
+                if (!loopConfig || loopConfig.type !== 'salbutamol') return;
+                salbutamolInhaler.classList.remove('inhaler-hidden');
+                createParticles(100, loopConfig.particleColor);
+                if (!animationFrameId) animate();
+                
+                setTimeout(() => {
+                    if (!loopConfig || loopConfig.type !== 'salbutamol') return;
+                    crisisLabel.style.display = 'none';
+                    timeLabel.style.display = 'flex';
+
+
+                    targetState = { ...states.salbutamol };
+                }, 1500);
+
+
+            }, 1000);
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('bronchusCanvas');
+            ctx = canvas.getContext('2d');
+            width = canvas.width;
+            height = canvas.height;
+            centerX = width / 2;
+            centerY = height / 2;
+            animationCard = document.getElementById('animation-card');
+            buttons = {
+                normal: document.getElementById('btn-normal'),
+                inflamed: document.getElementById('btn-inflamed'),
+                crisis: document.getElementById('btn-crisis'),
+                salbutamol: document.getElementById('btn-salbutamol'),
+                corticosteroid: document.getElementById('btn-corticosteroid')
+            };
+            infoTitle = document.getElementById('info-title');
+            infoDescription = document.getElementById('info-description');
+            infoDescriptionContent = document.getElementById('info-description-content');
+            accordionToggle = document.getElementById('accordion-toggle');
+            accordionIconContainer = document.getElementById('accordion-icon-container');
+            salbutamolInhaler = document.getElementById('salbutamol-inhaler');
+            corticosteroidInhaler = document.getElementById('corticosteroid-inhaler');
+            crisisLabel = document.getElementById('crisis-label');
+            inflammationLabel = document.getElementById('inflammation-label');
+            timeLabel = document.getElementById('time-label');
+            weeksLabel = document.getElementById('weeks-label');
+            layerTooltip = document.getElementById('layer-tooltip');
+            creditsBtn = document.getElementById('credits-btn');
+            creditsModal = document.getElementById('credits-modal');
+            closeModalBtn = document.getElementById('close-modal-btn');
+            modalContent = document.getElementById('modal-content');
+            triggersBanner = document.getElementById('triggers-banner');
+
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (animationFrameId) return;
+
+
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (e.clientX - rect.left) * scaleX;
+                const y = (e.clientY - rect.top) * scaleY;
+
+
+                const dist = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+
+
+                const p = currentState;
+                const muscleOuterRadius = p.lumenRadius + p.mucosaThickness + p.muscleThickness;
+                const muscleInnerRadius = p.lumenRadius + p.mucosaThickness;
+                const mucosaInnerRadius = p.lumenRadius;
+
+
+                let newHoveredLayer = null;
+                if (dist < mucosaInnerRadius) {
+                    newHoveredLayer = 'lumen';
+                } else if (dist < muscleInnerRadius) {
+                    newHoveredLayer = 'mucosa';
+                } else if (dist < muscleOuterRadius) {
+                    newHoveredLayer = 'muscle';
+                }
+
+
+                if (newHoveredLayer !== hoveredLayer) {
+                    hoveredLayer = newHoveredLayer;
+                    drawBronchus(currentState, hoveredLayer);
+                }
+
+
+                if (hoveredLayer) {
+                    layerTooltip.style.display = 'block';
+                    layerTooltip.style.left = `${e.clientX - rect.left + 15}px`;
+                    layerTooltip.style.top = `${e.clientY - rect.top + 15}px`;
+                    let text = '';
+                    if (hoveredLayer === 'lumen') text = 'Lumen (Vía Aérea)';
+                    if (hoveredLayer === 'mucosa') text = 'Mucosa/Submucosa';
+                    if (hoveredLayer === 'muscle') text = 'Músculo Liso';
+                    layerTooltip.textContent = text;
+                } else {
+                    layerTooltip.style.display = 'none';
+                }
+            });
+
+
+            canvas.addEventListener('mouseleave', () => {
+                if (hoveredLayer) {
+                    hoveredLayer = null;
+                    if (!animationFrameId) {
+                        drawBronchus(currentState, null);
+                    }
+                    layerTooltip.style.display = 'none';
+                }
+            });
+
+
+            buttons.normal.addEventListener('click', () => handleStateChange('normal'));
+            buttons.inflamed.addEventListener('click', () => handleStateChange('inflamed'));
+            buttons.crisis.addEventListener('click', () => handleStateChange('crisis'));
+            
+            buttons.salbutamol.addEventListener('click', () => {
+                stopAllLoops();
+                loopConfig = { 
+                    type: 'salbutamol',
+                    particleColor: 'rgba(60, 130, 250, 0.8)'
+                };
+                updateUI('salbutamol');
+                startSalbutamolLoopCycle();
+            });
+            
+            buttons.corticosteroid.addEventListener('click', () => {
+                stopAllLoops();
+                loopConfig = { 
+                    type: 'corticosteroid',
+                    particleColor: 'rgba(200, 200, 200, 0.8)' 
+                };
+                updateUI('corticosteroid');
+                startCorticosteroidLoopCycle();
+            });
+
+
+            accordionToggle.addEventListener('click', () => {
+                const content = infoDescriptionContent;
+                const iconContainer = accordionIconContainer;
+                iconContainer.classList.toggle('expanded');
+                if (content.style.maxHeight === '0px' || !content.style.maxHeight) {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                } else {
+                    content.style.maxHeight = '0px';
+                }
+            });
+
+
+            creditsBtn.addEventListener('click', () => {
+                creditsModal.classList.remove('opacity-0', 'pointer-events-none');
+                modalContent.classList.remove('scale-95');
+            });
+
+
+            closeModalBtn.addEventListener('click', () => {
+                creditsModal.classList.add('opacity-0', 'pointer-events-none');
+                modalContent.classList.add('scale-95');
+            });
+
+
+            creditsModal.addEventListener('click', (e) => {
+                if (e.target === creditsModal) {
+                    creditsModal.classList.add('opacity-0', 'pointer-events-none');
+                    modalContent.classList.add('scale-95');
+                }
+            });
+
+
+            handleStateChange('normal');
+        });
+    </script>
+</body>
+</html>
